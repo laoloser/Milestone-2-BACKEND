@@ -4,38 +4,44 @@ const { Pool } = require('pg');
 
 // Set up PostgreSQL connection
 const pool = new Pool({
-    connectionString: 'postgresql://postgres:sEljjAcZNbzsugXOnnvxswmLmwpBcbXx@monorail.proxy.rlwy.net:51657/railway',
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 const app = express();
+const PORT = process.env.PORT || 5000;
+
 app.use(cors());
 app.use(express.json());
 
-// Endpoint to receive votes
+app.get('/api/hand-dominance', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT choice FROM votes');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error executing query', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.post('/vote', async (req, res) => {
-    const { choice, state } = req.body;
-    try {
-        const result = await pool.query(
-            'INSERT INTO votes (choice, state) VALUES ($1, $2) RETURNING *',
-            [choice, state]
-        );
-        res.status(201).json(result.rows[0]);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Internal Server Error' });
+  const { email, choice, state } = req.body;
+  try {
+    const existingVote = await pool.query('SELECT email FROM votes WHERE email = $1', [email]);
+    if (existingVote.rows.length > 0) {
+      return res.status(409).json({ error: 'Email already exists' });
     }
+
+    await pool.query('INSERT INTO votes (email, choice, state) VALUES ($1, $2, $3)', [email, choice, state]);
+    res.status(200).json({ message: 'Vote recorded' });
+  } catch (error) {
+    console.error('Error executing query', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
-// Endpoint to get votes
-app.get('/votes', async (req, res) => {
-    try {
-        const result = await pool.query('SELECT * FROM votes');
-        res.status(200).json(result.rows);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Internal Server Error' });
-    }
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
