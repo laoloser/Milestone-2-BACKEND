@@ -18,7 +18,7 @@ app.use(express.json());
 
 app.get('/api/hand-dominance', async (req, res) => {
   try {
-    const result = await pool.query('SELECT state, choice, COUNT(*) as count FROM votes GROUP BY state, choice');
+    const result = await pool.query('SELECT choice FROM votes');
     res.json(result.rows);
   } catch (error) {
     console.error('Error executing query', error);
